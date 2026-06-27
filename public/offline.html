@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline – AttendEase</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #0f172a; }
+    .card { text-align: center; padding: 2rem; max-width: 360px; }
+    .icon { font-size: 4rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem; }
+    p { color: #64748b; font-size: 0.9rem; line-height: 1.6; margin: 0 0 1.5rem; }
+    button { background: #6366f1; color: white; border: none; padding: 0.75rem 2rem; border-radius: 0.75rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+    button:hover { background: #4f46e5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>You're offline</h1>
+    <p>AttendEase needs an internet connection to sync your attendance. Please check your connection and try again.</p>
+    <button onclick="window.location.reload()">Try Again</button>
+  </div>
+</body>
+</html>
