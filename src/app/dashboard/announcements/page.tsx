@@ -59,15 +59,16 @@ export default function AnnouncementsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Announcements</h1>
-          <p className="text-slate-500 text-sm mt-1">Post notices visible to all employees</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Announcements</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Post notices visible to all employees</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors">
-          + New Announcement
+          className="bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors whitespace-nowrap">
+          <span className="hidden sm:inline">+ New Announcement</span>
+          <span className="sm:hidden">+ Post</span>
         </button>
       </div>
 
