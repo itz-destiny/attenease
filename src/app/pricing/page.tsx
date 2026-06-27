@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { motion, AnimatePresence } from "framer-motion";
 
 const PLANS = [
   {
@@ -153,15 +154,30 @@ export default function PricingPage() {
         </p>
 
         {/* Billing toggle */}
-        <div className="flex items-center justify-center gap-3 mt-8">
-          <span className={`text-sm font-medium ${billing === "monthly" ? "text-slate-900" : "text-slate-400"}`}>Monthly</span>
-          <button onClick={() => setBilling(billing === "monthly" ? "annual" : "monthly")}
-            className={`relative w-12 h-6 rounded-full transition-colors ${billing === "annual" ? "bg-indigo-600" : "bg-slate-200"}`}>
-            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${billing === "annual" ? "translate-x-7" : "translate-x-1"}`} />
-          </button>
-          <span className={`text-sm font-medium ${billing === "annual" ? "text-slate-900" : "text-slate-400"}`}>
-            Annual <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-1.5 py-0.5 rounded-full ml-1">Save 20%</span>
-          </span>
+        <div className="flex items-center justify-center mt-8">
+          <div className="inline-flex items-center bg-white border border-slate-200 rounded-2xl p-1.5 gap-1 shadow-sm">
+            <button
+              onClick={() => setBilling("monthly")}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                billing === "monthly" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBilling("annual")}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 ${
+                billing === "annual" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Annual
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full transition-colors ${
+                billing === "annual" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700"
+              }`}>
+                Save 20%
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -189,23 +205,29 @@ export default function PricingPage() {
                 <p className="text-xs text-slate-400">{plan.employees}</p>
               </div>
 
-              <div className="mb-6">
-                {plan.monthlyPrice === null ? (
-                  <p className="text-3xl font-extrabold text-slate-900">Custom</p>
-                ) : plan.monthlyPrice === 0 ? (
-                  <p className="text-3xl font-extrabold text-slate-900">Free</p>
-                ) : (
-                  <>
-                    <p className="text-3xl font-extrabold text-slate-900">
-                      {fmt(billing === "annual" ? Math.round(price! / 12) : price!)}
-                      <span className="text-base font-normal text-slate-400">/mo</span>
-                    </p>
-                    {billing === "annual" && (
-                      <p className="text-xs text-emerald-600 font-medium mt-1">{fmt(price!)} billed annually</p>
-                    )}
-                  </>
-                )}
-              </div>
+              <AnimatePresence mode="wait">
+                <motion.div key={`${plan.key}-${billing}`}
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}
+                  className="mb-6"
+                >
+                  {plan.monthlyPrice === null ? (
+                    <p className="text-3xl font-extrabold text-slate-900">Custom</p>
+                  ) : plan.monthlyPrice === 0 ? (
+                    <p className="text-3xl font-extrabold text-slate-900">Free</p>
+                  ) : (
+                    <>
+                      <p className="text-3xl font-extrabold text-slate-900">
+                        {fmt(billing === "annual" ? Math.round(price! / 12) : price!)}
+                        <span className="text-base font-normal text-slate-400">/mo</span>
+                      </p>
+                      {billing === "annual" && (
+                        <p className="text-xs text-emerald-600 font-medium mt-1">{fmt(price!)} billed annually</p>
+                      )}
+                    </>
+                  )}
+                </motion.div>
+              </AnimatePresence>
 
               <ul className="space-y-2.5 flex-1 mb-8">
                 {plan.features.map((f) => (
