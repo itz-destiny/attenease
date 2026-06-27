@@ -35,44 +35,108 @@ function fmtDuration(ms: number) {
   return `${h}h ${m}m`;
 }
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "morning";
+  if (h < 17) return "afternoon";
+  return "evening";
+}
+
 export default function EmployeeDashboard() {
   const { user } = useAuth();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [active, setActive] = useState<ActiveRecord>(null);
   const [loading, setLoading] = useState(true);
+  const [checkingOut, setCheckingOut] = useState(false);
   const [now, setNow] = useState(new Date());
+  const [elapsed, setElapsed] = useState("");
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [checkoutMsg, setCheckoutMsg] = useState("");
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
+  // Elapsed timer for active session
   useEffect(() => {
-    Promise.all([
+    if (!active) { setElapsed(""); return; }
+    function tick() {
+      const ms = Date.now() - new Date(active!.checkIn).getTime();
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      setElapsed(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
+    }
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [active]);
+
+  function reload() {
+    return Promise.all([
       fetch("/api/attendance/mine?days=14").then((r) => r.json()),
       fetch("/api/attendance/active").then((r) => r.json()),
       fetch("/api/announcements").then((r) => r.json()),
     ]).then(([recs, act, ann]) => {
       setRecords(Array.isArray(recs) ? recs : []);
-      setActive(act);
+      setActive(act || null);
       setAnnouncements(Array.isArray(ann) ? ann : []);
       setLoading(false);
     });
-  }, []);
+  }
+
+  useEffect(() => { reload(); }, []);
+
+  async function handleCheckOut() {
+    if (!active || checkingOut) return;
+    setCheckingOut(true);
+    setCheckoutMsg("");
+    try {
+      // Try to get current GPS coords, but don't block checkout if denied
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
+        );
+        latitude = pos.coords.latitude;
+        longitude = pos.coords.longitude;
+      } catch { /* GPS optional for checkout */ }
+
+      const res = await fetch("/api/attendance/check-out", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendanceId: active.id, latitude, longitude }),
+      });
+
+      if (res.ok) {
+        setActive(null);
+        setCheckoutMsg("Checked out successfully. Have a great day!");
+        // Refresh records to show the completed entry
+        fetch("/api/attendance/mine?days=14").then((r) => r.json()).then((recs) => {
+          setRecords(Array.isArray(recs) ? recs : []);
+        });
+      } else {
+        const data = await res.json();
+        setCheckoutMsg(data.error || "Check-out failed. Please try again.");
+      }
+    } catch {
+      setCheckoutMsg("Network error. Please try again.");
+    }
+    setCheckingOut(false);
+  }
 
   const todayRecord = records.find((r) => isToday(new Date(r.checkIn)));
+  const doneForDay = !active && !!todayRecord?.checkOut;
 
-  // Week grid — Mon to today
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekDays = eachDayOfInterval({ start: weekStart, end: now });
 
-  // Total hours this week
   const weekMs = records
     .filter((r) => new Date(r.checkIn) >= weekStart)
     .reduce((sum, r) => sum + durationMs(r), 0);
 
-  // Total hours today
   const todayMs = records
     .filter((r) => isToday(new Date(r.checkIn)))
     .reduce((sum, r) => sum + durationMs(r), 0);
@@ -87,67 +151,99 @@ export default function EmployeeDashboard() {
         <p className="text-slate-500 text-xs sm:text-sm mt-0.5">{format(now, "EEE, MMM d, yyyy")}</p>
       </div>
 
-      {/* Status card */}
-      <div className={`rounded-2xl p-5 mb-5 ${active ? "bg-emerald-600 text-white" : "bg-white border border-slate-100"}`}>
-        {active ? (
-          <div className="flex items-start sm:items-center justify-between gap-3">
-            <div>
-              <p className="text-emerald-100 text-xs font-medium mb-1">Currently checked in</p>
-              <p className="text-xl sm:text-2xl font-bold">{active.locationName ?? "Office"}</p>
-              <p className="text-emerald-200 text-xs sm:text-sm mt-1">
-                Since {format(new Date(active.checkIn), "h:mm a")} · {fmtDuration(Date.now() - new Date(active.checkIn).getTime())} elapsed
+      {/* Main status card */}
+      {active ? (
+        // ── CHECKED IN ──────────────────────────────────────────────────────
+        <div className="bg-emerald-600 text-white rounded-2xl p-5 mb-5 shadow-lg shadow-emerald-100">
+          <p className="text-emerald-100 text-xs font-medium mb-1">Currently checked in</p>
+          <p className="text-xl sm:text-2xl font-bold">{active.locationName ?? "Office"}</p>
+          <p className="text-emerald-200 text-sm mt-1">
+            Since {format(new Date(active.checkIn), "h:mm a")}
+          </p>
+          <p className="text-4xl font-extrabold tabular-nums mt-2 mb-5">{elapsed}</p>
+          <button
+            onClick={handleCheckOut}
+            disabled={checkingOut}
+            className="w-full bg-white text-emerald-700 font-bold py-3.5 rounded-xl hover:bg-emerald-50 transition-colors text-base disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {checkingOut ? (
+              <><span className="w-4 h-4 border-2 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin" /> Checking out…</>
+            ) : (
+              "Check Out"
+            )}
+          </button>
+          {checkoutMsg && (
+            <p className="text-xs text-emerald-100 text-center mt-2">{checkoutMsg}</p>
+          )}
+        </div>
+      ) : doneForDay ? (
+        // ── DONE FOR THE DAY ────────────────────────────────────────────────
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 mb-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-slate-800">Attendance complete for today</p>
+              <p className="text-slate-500 text-sm mt-0.5">
+                {format(new Date(todayRecord!.checkIn), "h:mm a")} – {todayRecord!.checkOut ? format(new Date(todayRecord!.checkOut), "h:mm a") : ""}
+                {" "}· {fmtDuration(todayMs)}
               </p>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-1.5 inline-block ${
+                todayRecord!.status === "present" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+              }`}>
+                {todayRecord!.status}
+              </span>
+            </div>
+          </div>
+          {checkoutMsg && (
+            <p className={`text-sm mt-3 px-3 py-2 rounded-lg ${checkoutMsg.includes("success") ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
+              {checkoutMsg}
+            </p>
+          )}
+        </div>
+      ) : (
+        // ── NOT CHECKED IN YET ──────────────────────────────────────────────
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 mb-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-slate-500 text-sm font-medium mb-1">Not checked in yet</p>
+              <p className="text-2xl font-bold text-slate-900 tabular-nums">{format(now, "HH:mm:ss")}</p>
             </div>
             <Link
               href="/check-in"
-              className="bg-white text-emerald-700 font-semibold px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-sm hover:bg-emerald-50 transition-colors flex-shrink-0"
+              className="bg-indigo-600 text-white font-semibold px-5 py-3 rounded-xl text-sm hover:bg-indigo-700 transition-colors flex-shrink-0"
             >
-              Check Out
+              Check In →
             </Link>
           </div>
-        ) : (
-          <div className="flex items-start sm:items-center justify-between gap-3">
-            <div>
-              <p className="text-slate-500 text-xs sm:text-sm font-medium mb-1">
-                {todayRecord ? "Checked out for today" : "Not checked in yet"}
-              </p>
-              <p className="text-lg sm:text-xl font-bold text-slate-800 tabular-nums">
-                {todayRecord
-                  ? `Today: ${fmtDuration(todayMs)}`
-                  : format(now, "HH:mm:ss")}
-              </p>
-            </div>
-            {!todayRecord && (
-              <Link
-                href="/check-in"
-                className="bg-indigo-600 text-white font-semibold px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-sm hover:bg-indigo-700 transition-colors flex-shrink-0"
-              >
-                Check In →
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
+          {checkoutMsg && (
+            <p className="text-sm mt-3 text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">{checkoutMsg}</p>
+          )}
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="bg-white rounded-2xl p-5 border border-slate-100">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100">
           <p className="text-xs text-slate-400 mb-1">Today</p>
-          <p className="text-xl font-bold text-slate-900">{fmtDuration(todayMs)}</p>
+          <p className="text-lg sm:text-xl font-bold text-slate-900">{fmtDuration(todayMs)}</p>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-100">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100">
           <p className="text-xs text-slate-400 mb-1">This Week</p>
-          <p className="text-xl font-bold text-slate-900">{fmtDuration(weekMs)}</p>
+          <p className="text-lg sm:text-xl font-bold text-slate-900">{fmtDuration(weekMs)}</p>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-100">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100">
           <p className="text-xs text-slate-400 mb-1">Status</p>
-          <p className="text-xl font-bold text-slate-900 capitalize">
+          <p className="text-lg sm:text-xl font-bold text-slate-900 capitalize">
             {active ? "Active" : todayRecord ? todayRecord.status : "—"}
           </p>
         </div>
       </div>
 
-      {/* This week attendance grid */}
+      {/* This week grid */}
       <div className="bg-white rounded-2xl border border-slate-100 p-4 sm:p-6 mb-5">
         <h2 className="font-semibold text-slate-800 mb-4">This Week</h2>
         <div className="flex gap-2">
@@ -176,9 +272,9 @@ export default function EmployeeDashboard() {
           })}
         </div>
         <div className="flex items-center gap-4 mt-4 text-xs text-slate-400">
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-100 inline-block"></span>On time</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-100 inline-block"></span>Late</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-100 inline-block"></span>Absent</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-100 inline-block" />On time</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-100 inline-block" />Late</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-100 inline-block" />Absent</span>
         </div>
       </div>
 
@@ -214,7 +310,7 @@ export default function EmployeeDashboard() {
           <div className="p-8 text-center text-slate-400 text-sm">No attendance records yet.</div>
         ) : (
           <div className="divide-y divide-slate-50">
-            {records.slice(0, 5).map((r) => (
+            {records.slice(0, 7).map((r) => (
               <div key={r.id} className="flex items-center justify-between px-5 py-4">
                 <div>
                   <p className="text-sm font-medium text-slate-800">{format(new Date(r.checkIn), "EEE, MMM d")}</p>
@@ -223,7 +319,9 @@ export default function EmployeeDashboard() {
                 <div className="text-right">
                   <p className="text-sm text-slate-700">
                     {format(new Date(r.checkIn), "HH:mm")}
-                    {r.checkOut ? ` – ${format(new Date(r.checkOut), "HH:mm")}` : " – Active"}
+                    {r.checkOut ? ` – ${format(new Date(r.checkOut), "HH:mm")}` : (
+                      <span className="text-emerald-600 font-medium"> – Active</span>
+                    )}
                   </p>
                   <div className="flex items-center justify-end gap-2 mt-1">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -239,11 +337,4 @@ export default function EmployeeDashboard() {
       </div>
     </div>
   );
-}
-
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "morning";
-  if (h < 17) return "afternoon";
-  return "evening";
 }
