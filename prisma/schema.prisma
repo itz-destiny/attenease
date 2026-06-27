@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("free") // free | growth | enterprise
+  createdAt DateTime @default(now())
+
+  users         User[]
+  locations     Location[]
+  attendances   Attendance[]
+  announcements Announcement[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  orgId        String
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("employee") // employee | admin | owner
+  createdAt    DateTime @default(now())
+
+  organization  Organization   @relation(fields: [orgId], references: [id])
+  attendances   Attendance[]
+  announcements Announcement[]
+}
+
+model Announcement {
+  id        String    @id @default(cuid())
+  orgId     String
+  authorId  String
+  title     String
+  body      String
+  priority  String    @default("normal") // normal | urgent
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  author       User         @relation(fields: [authorId], references: [id])
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  latitude  Float
+  longitude Float
+  radius    Float    @default(100)
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  attendances  Attendance[]
+}
+
+model Attendance {
+  id           String    @id @default(cuid())
+  orgId        String
+  userId       String
+  locationId   String?
+  checkIn      DateTime
+  checkOut     DateTime?
+  inLatitude   Float?
+  inLongitude  Float?
+  outLatitude  Float?
+  outLongitude Float?
+  status       String    @default("present") // present | late | absent
+  note         String?
+  createdAt    DateTime  @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  location     Location?    @relation(fields: [locationId], references: [id])
+}
