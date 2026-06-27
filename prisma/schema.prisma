@@ -3,16 +3,15 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model Organization {
-  id        String   @id @default(cuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   slug      String   @unique
-  plan      String   @default("free") // free | growth | enterprise
+  plan      String   @default("free")
   createdAt DateTime @default(now())
 
   users         User[]
@@ -22,12 +21,12 @@ model Organization {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  orgId        String
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  orgId        String   @db.ObjectId
   name         String
   email        String   @unique
   passwordHash String
-  role         String   @default("employee") // employee | admin | owner
+  role         String   @default("employee")
   createdAt    DateTime @default(now())
 
   organization  Organization   @relation(fields: [orgId], references: [id])
@@ -35,27 +34,13 @@ model User {
   announcements Announcement[]
 }
 
-model Announcement {
-  id        String    @id @default(cuid())
-  orgId     String
-  authorId  String
-  title     String
-  body      String
-  priority  String    @default("normal") // normal | urgent
-  expiresAt DateTime?
-  createdAt DateTime  @default(now())
-
-  organization Organization @relation(fields: [orgId], references: [id])
-  author       User         @relation(fields: [authorId], references: [id])
-}
-
 model Location {
-  id        String   @id @default(cuid())
-  orgId     String
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  orgId     String  @db.ObjectId
   name      String
   latitude  Float
   longitude Float
-  radius    Float    @default(100)
+  radius    Float   @default(100)
   createdAt DateTime @default(now())
 
   organization Organization @relation(fields: [orgId], references: [id])
@@ -63,21 +48,35 @@ model Location {
 }
 
 model Attendance {
-  id           String    @id @default(cuid())
-  orgId        String
-  userId       String
-  locationId   String?
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  orgId        String    @db.ObjectId
+  userId       String    @db.ObjectId
+  locationId   String?   @db.ObjectId
   checkIn      DateTime
   checkOut     DateTime?
   inLatitude   Float?
   inLongitude  Float?
   outLatitude  Float?
   outLongitude Float?
-  status       String    @default("present") // present | late | absent
+  status       String    @default("present")
   note         String?
   createdAt    DateTime  @default(now())
 
   organization Organization @relation(fields: [orgId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
   location     Location?    @relation(fields: [locationId], references: [id])
+}
+
+model Announcement {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  orgId     String    @db.ObjectId
+  authorId  String    @db.ObjectId
+  title     String
+  body      String
+  priority  String    @default("normal")
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  author       User         @relation(fields: [authorId], references: [id])
 }
