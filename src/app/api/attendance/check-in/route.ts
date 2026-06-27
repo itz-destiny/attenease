@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { locationId, latitude, longitude } = await req.json();
+  const { locationId, latitude, longitude, note, offlineTimestamp } = await req.json();
 
   const existing = await prisma.attendance.findFirst({
     where: { userId: session.userId, checkOut: null },
@@ -41,18 +41,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const now = new Date();
-  const status = now.getHours() >= 9 ? "late" : "present";
+  // offlineTimestamp is set when syncing a queued offline check-in
+  let checkInTime = new Date();
+  if (offlineTimestamp) {
+    const ts = new Date(offlineTimestamp);
+    const ageMs = Date.now() - ts.getTime();
+    // Accept offline timestamps up to 24 hours old
+    if (!isNaN(ts.getTime()) && ageMs >= 0 && ageMs < 86400000) {
+      checkInTime = ts;
+    }
+  }
+  const status = checkInTime.getHours() >= 9 ? "late" : "present";
 
   const attendance = await prisma.attendance.create({
     data: {
       orgId: session.orgId,
       userId: session.userId,
       locationId: location.id,
-      checkIn: now,
+      checkIn: checkInTime,
       inLatitude: latitude,
       inLongitude: longitude,
       status,
+      note: note || null,
     },
   });
 
