@@ -9,11 +9,20 @@ export async function POST(req: NextRequest) {
 
   const { locationId, latitude, longitude, note, offlineTimestamp } = await req.json();
 
-  const existing = await prisma.attendance.findFirst({
-    where: { userId: session.userId, checkOut: null },
+  // Block double check-in (open session) AND second check-in on same calendar day
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const todayRecord = await prisma.attendance.findFirst({
+    where: { userId: session.userId, checkIn: { gte: todayStart, lte: todayEnd } },
   });
-  if (existing) {
-    return NextResponse.json({ error: "Already checked in. Please check out first." }, { status: 400 });
+  if (todayRecord) {
+    if (!todayRecord.checkOut) {
+      return NextResponse.json({ error: "Already checked in. Please check out first." }, { status: 400 });
+    }
+    return NextResponse.json({ error: "You have already completed your attendance for today." }, { status: 400 });
   }
 
   const location = await prisma.location.findFirst({ where: { id: locationId, orgId: session.orgId } });

@@ -79,6 +79,7 @@ function CheckInInner() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [doneForDay, setDoneForDay] = useState(false);
   const [now, setNow] = useState(new Date());
   const autoCheckedIn = useRef(false);
 
@@ -101,9 +102,17 @@ function CheckInInner() {
     Promise.all([
       fetch("/api/locations").then((r) => r.json()).catch(() => []),
       fetch("/api/attendance/active").then((r) => r.json()).catch(() => null),
-    ]).then(([locs, act]) => {
+      fetch("/api/attendance/mine?days=1").then((r) => r.json()).catch(() => []),
+    ]).then(([locs, act, mine]) => {
       setLocations(Array.isArray(locs) ? locs : []);
-      setActive(act);
+      setActive(act || null);
+      // Check if already completed attendance today (checked in AND out)
+      const today = new Date().toDateString();
+      const todayDone = Array.isArray(mine) && mine.some(
+        (r: { checkIn: string; checkOut: string | null }) =>
+          new Date(r.checkIn).toDateString() === today && !!r.checkOut
+      );
+      setDoneForDay(todayDone);
       setLoading(false);
       // Cache locations for offline use
       if (Array.isArray(locs) && locs.length > 0) {
@@ -246,6 +255,7 @@ function CheckInInner() {
       await registerSync();
       setPendingCount((c) => c + 1);
       setActive(null);
+      setDoneForDay(true);
       setMessage({ text: "Saved offline — will upload automatically when back online.", ok: true });
       setActionLoading(false);
       return;
@@ -262,6 +272,7 @@ function CheckInInner() {
     });
     if (res.ok) {
       setActive(null);
+      setDoneForDay(true);
       setMessage({ text: "Checked out. Have a great day!", ok: true });
     } else {
       const data = await res.json();
@@ -390,34 +401,49 @@ function CheckInInner() {
             </div>
           )}
 
-          {/* Location list */}
+          {/* Location list / done state */}
           {!active && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm mb-5">
-              <div className="p-4 border-b border-slate-50">
-                <h2 className="font-semibold text-slate-800">Select Your Office</h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {isOnline ? "Or scan the office QR code for instant check-in" : "Offline — using cached locations"}
-                </p>
-              </div>
-              {loading ? (
-                <div className="p-8 text-center text-slate-400 text-sm">Loading locations…</div>
-              ) : locations.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-sm">No locations set up. Contact your admin.</div>
-              ) : (
-                <div className="divide-y divide-slate-50">
-                  {locations.map((loc) => (
-                    <button key={loc.id} onClick={() => checkIn(loc.id)} disabled={actionLoading || !userCoords}
-                      className="w-full flex items-center justify-between px-6 py-4 hover:bg-indigo-50 transition-colors disabled:opacity-50 text-left">
-                      <div>
-                        <div className="font-medium text-slate-800 text-sm">{loc.name}</div>
-                        <div className="text-xs text-slate-400 mt-0.5">Within {loc.radius}m radius</div>
-                      </div>
-                      <span className="text-indigo-600 text-sm font-medium">{actionLoading ? "…" : "Check In →"}</span>
-                    </button>
-                  ))}
+            doneForDay ? (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm mb-5 p-6 text-center">
+                <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
                 </div>
-              )}
-            </div>
+                <h2 className="font-bold text-slate-800 text-lg mb-1">All done for today!</h2>
+                <p className="text-slate-500 text-sm">You&apos;ve already completed your attendance for today. See you tomorrow!</p>
+                <Link href="/employee" className="inline-block mt-4 text-indigo-600 text-sm font-medium hover:text-indigo-700">
+                  Back to dashboard →
+                </Link>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm mb-5">
+                <div className="p-4 border-b border-slate-50">
+                  <h2 className="font-semibold text-slate-800">Select Your Office</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {isOnline ? "Or scan the office QR code for instant check-in" : "Offline — using cached locations"}
+                  </p>
+                </div>
+                {loading ? (
+                  <div className="p-8 text-center text-slate-400 text-sm">Loading locations…</div>
+                ) : locations.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-sm">No locations set up. Contact your admin.</div>
+                ) : (
+                  <div className="divide-y divide-slate-50">
+                    {locations.map((loc) => (
+                      <button key={loc.id} onClick={() => checkIn(loc.id)} disabled={actionLoading || !userCoords}
+                        className="w-full flex items-center justify-between px-6 py-4 hover:bg-indigo-50 transition-colors disabled:opacity-50 text-left">
+                        <div>
+                          <div className="font-medium text-slate-800 text-sm">{loc.name}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">Within {loc.radius}m radius</div>
+                        </div>
+                        <span className="text-indigo-600 text-sm font-medium">{actionLoading ? "…" : "Check In →"}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
           )}
 
           {/* Message */}
