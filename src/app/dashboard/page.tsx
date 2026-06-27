@@ -5,6 +5,7 @@ import { format, startOfDay, endOfDay } from "date-fns";
 import Link from "next/link";
 import AdminDashboardClient from "./AdminDashboardClient";
 import WeeklyChart from "@/components/WeeklyChart";
+import { effectivePlan, PLANS } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
   const todayStart = startOfDay(today);
   const todayEnd = endOfDay(today);
 
-  const [totalEmployees, todayAttendances, totalLocations] = await Promise.all([
+  const [totalEmployees, todayAttendances, totalLocations, org] = await Promise.all([
     prisma.user.count({ where: { orgId: session.orgId } }),
     prisma.attendance.findMany({
       where: { orgId: session.orgId, checkIn: { gte: todayStart, lte: todayEnd } },
@@ -25,14 +26,20 @@ export default async function DashboardPage() {
       orderBy: { checkIn: "desc" },
     }),
     prisma.location.count({ where: { orgId: session.orgId } }),
+    prisma.organization.findUnique({ where: { id: session.orgId } }),
   ]);
+
+  const activePlan = org ? effectivePlan(org.plan, org.planExpiresAt) : "free";
+  const planData = PLANS[activePlan];
+  const employeeLimit = planData.employees === Infinity ? null : planData.employees;
+  const onFreePlan = activePlan === "free";
 
   const checkedIn = todayAttendances.filter((a) => !a.checkOut).length;
   const checkedOut = todayAttendances.filter((a) => a.checkOut).length;
   const lateCount = todayAttendances.filter((a) => a.status === "late").length;
 
   const stats = [
-    { label: "Total Employees", value: totalEmployees, color: "bg-indigo-500", emoji: "👥" },
+    { label: employeeLimit ? `Employees (${totalEmployees}/${employeeLimit})` : "Total Employees", value: totalEmployees, color: "bg-indigo-500", emoji: "👥" },
     { label: "Currently In", value: checkedIn, color: "bg-emerald-500", emoji: "✅" },
     { label: "Checked Out", value: checkedOut, color: "bg-amber-500", emoji: "🚪" },
     { label: "Late Today", value: lateCount, color: "bg-red-400", emoji: "⏰" },
@@ -41,6 +48,35 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-8">
+      {/* Upgrade banner for free plan */}
+      {onFreePlan && (
+        <div className="flex items-center justify-between bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl px-5 py-4 mb-6">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">🚀</span>
+            <div>
+              <p className="text-sm font-semibold">You&apos;re on the Free plan · Limited to 5 employees</p>
+              <p className="text-indigo-200 text-xs mt-0.5">Upgrade to Growth for ₦14,900/mo and unlock unlimited locations, QR codes & reports</p>
+            </div>
+          </div>
+          <Link href="/pricing" className="bg-white text-indigo-700 font-semibold text-sm px-4 py-2 rounded-xl hover:bg-indigo-50 transition-colors whitespace-nowrap flex-shrink-0 ml-4">
+            View Plans →
+          </Link>
+        </div>
+      )}
+
+      {/* Plan badge for paid plans */}
+      {!onFreePlan && (
+        <div className="flex items-center gap-2 mb-5">
+          <span className={`text-xs font-bold px-3 py-1 rounded-full ${activePlan === "business" ? "bg-purple-100 text-purple-700" : "bg-indigo-100 text-indigo-700"}`}>
+            {planData.label} Plan
+          </span>
+          {org?.planExpiresAt && (
+            <span className="text-xs text-slate-400">Renews {format(new Date(org.planExpiresAt), "MMM d, yyyy")}</span>
+          )}
+          <Link href="/pricing" className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors ml-1">Manage →</Link>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">

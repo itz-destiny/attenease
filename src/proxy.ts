@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/auth";
 
-const PUBLIC = ["/", "/sign-in", "/sign-up", "/api/auth/sign-in", "/api/auth/sign-up", "/api/icons", "/manifest.json", "/sw.js", "/offline.html"];
+const PUBLIC = ["/", "/sign-in", "/sign-up", "/pricing", "/api/auth/sign-in", "/api/auth/sign-up", "/api/icons", "/api/webhooks", "/api/paystack/verify", "/manifest.json", "/sw.js", "/offline.html"];
 const ADMIN_ONLY = ["/dashboard"];
 const EMPLOYEE_ONLY = ["/employee"];
 
