@@ -8,6 +8,7 @@ type AttendanceRecord = {
   checkIn: string;
   checkOut: string | null;
   status: string;
+  note?: string | null;
   user: { name: string; email: string };
   location: { name: string } | null;
 };
