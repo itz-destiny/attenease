@@ -128,21 +128,34 @@ function CheckInInner() {
   return (
     <>
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <nav className="flex items-center justify-between px-6 py-4 max-w-xl mx-auto">
-        <Link href={user?.role === "employee" ? "/employee" : "/dashboard"} className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">A</span>
+      <nav className="flex items-center justify-between px-4 py-3 max-w-xl mx-auto">
+        <Link
+          href={user?.role === "employee" ? "/employee" : "/dashboard"}
+          className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors group"
+        >
+          <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 shadow-sm flex items-center justify-center group-hover:border-indigo-300 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
           </div>
-          <span className="font-bold text-slate-800 hidden sm:block">AttendEase</span>
+          <span className="text-sm font-medium">
+            {user?.role === "employee" ? "My Dashboard" : "Dashboard"}
+          </span>
         </Link>
-        <div className="flex items-center gap-3">
-          {user && (
-            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-sm font-semibold text-indigo-700">
-              {user.name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <button onClick={signOut} className="text-sm text-slate-500 hover:text-red-600 transition-colors">Sign out</button>
+
+        <div className="flex items-center gap-2 bg-white border border-slate-200 shadow-sm rounded-xl px-3 py-1.5">
+          <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center">
+            <span className="text-white font-bold text-xs">A</span>
+          </div>
+          <span className="font-bold text-slate-800 text-sm">AttendEase</span>
         </div>
+
+        <button onClick={signOut} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-red-500 transition-colors">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span className="hidden sm:block">Sign out</span>
+        </button>
       </nav>
 
       <div className="max-w-xl mx-auto px-6 pt-6 pb-10">
