@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { effectivePlan, getPlanLimit } from "@/lib/plans";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -16,6 +17,19 @@ export async function POST(req: NextRequest) {
   }
   if (password.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
+  }
+
+  // Enforce plan employee limit
+  const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
+  if (org) {
+    const activePlan = effectivePlan(org.plan, org.planExpiresAt);
+    const limit = getPlanLimit(activePlan, "employees");
+    const currentCount = await prisma.user.count({ where: { orgId: session.orgId } });
+    if (currentCount >= limit) {
+      return NextResponse.json({
+        error: `Your ${activePlan} plan supports up to ${limit} employees. Upgrade at /pricing to add more.`,
+      }, { status: 403 });
+    }
   }
 
   const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });

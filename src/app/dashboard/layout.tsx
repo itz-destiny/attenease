@@ -12,6 +12,7 @@ const navLinks = [
   { href: "/check-in", label: "Check In", icon: "✅" },
   { href: "/dashboard/announcements", label: "Announcements", icon: "📢" },
   { href: "/dashboard/profile", label: "My Profile", icon: "👤" },
+  { href: "/pricing", label: "Upgrade Plan", icon: "⭐" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
