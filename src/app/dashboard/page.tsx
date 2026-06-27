@@ -5,6 +5,7 @@ import { format, startOfDay, endOfDay } from "date-fns";
 import Link from "next/link";
 import AdminDashboardClient from "./AdminDashboardClient";
 import WeeklyChart from "@/components/WeeklyChart";
+import OnboardingTour from "@/components/OnboardingTour";
 import { effectivePlan, PLANS } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
@@ -80,6 +81,7 @@ export default async function DashboardPage() {
       )}
 
       <AdminDashboardClient />
+      <OnboardingTour hasEmployees={totalEmployees > 0} hasLocations={totalLocations > 0} />
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
           Good {getGreeting()}, {session.name.split(" ")[0]}
