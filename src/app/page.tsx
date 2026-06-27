@@ -51,7 +51,7 @@ function fadeUp(delay = 0) {
     initial: { opacity: 0, y: 32 },
     whileInView: { opacity: 1, y: 0 },
     viewport: { once: true },
-    transition: { duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.6, delay, ease: "easeOut" as const },
   };
 }
 
@@ -147,7 +147,7 @@ export default function HomePage() {
         <motion.div
           initial={{ opacity: 0, y: 60, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 1, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 1, delay: 0.6, ease: "easeOut" }}
           className="mt-16 mx-auto max-w-4xl"
         >
           <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-3xl p-1 shadow-2xl shadow-indigo-900/20">
