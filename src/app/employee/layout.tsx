@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { format } from "date-fns";
 
 const navLinks = [
   { href: "/employee", label: "My Dashboard", icon: "🏠" },
@@ -12,10 +13,63 @@ const navLinks = [
   { href: "/employee/profile", label: "My Profile", icon: "👤" },
 ];
 
+type ActiveSession = { id: string; checkIn: string; locationName: string | null } | null;
+
+function useActiveSession() {
+  const [active, setActive] = useState<ActiveSession>(null);
+
+  useEffect(() => {
+    fetch("/api/attendance/active")
+      .then((r) => r.json())
+      .then((d) => setActive(d || null))
+      .catch(() => {});
+  }, []);
+
+  return active;
+}
+
+function CheckInBanner({ active }: { active: ActiveSession }) {
+  const [elapsed, setElapsed] = useState("");
+
+  useEffect(() => {
+    if (!active) { setElapsed(""); return; }
+    function tick() {
+      const ms = Date.now() - new Date(active!.checkIn).getTime();
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      setElapsed(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
+    }
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [active]);
+
+  if (!active) return null;
+
+  return (
+    <Link href="/check-in"
+      className="block mx-4 mb-3 bg-emerald-500 hover:bg-emerald-600 transition-colors text-white rounded-xl px-4 py-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-emerald-100 font-medium">Currently checked in</p>
+          <p className="text-sm font-bold truncate">{active.locationName ?? "Office"}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-emerald-100">Elapsed</p>
+          <p className="text-sm font-bold tabular-nums">{elapsed}</p>
+        </div>
+      </div>
+      <p className="text-xs text-emerald-200 mt-1">Tap to check out →</p>
+    </Link>
+  );
+}
+
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
+  const active = useActiveSession();
 
   useEffect(() => { setOpen(false); }, [pathname]);
 
@@ -38,11 +92,11 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navLinks.map((link) => {
-          const active = pathname === link.href;
+          const isActive = pathname === link.href;
           return (
             <Link key={link.href} href={link.href} onClick={() => setOpen(false)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                active ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                isActive ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}>
               <span>{link.icon}</span>
               {link.label}
@@ -50,6 +104,9 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
           );
         })}
       </nav>
+
+      {/* Persistent active session banner */}
+      <CheckInBanner active={active} />
 
       <div className="p-4 border-t border-slate-100">
         {user && (
@@ -73,7 +130,6 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="flex h-screen bg-slate-50">
-
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 bg-white border-r border-slate-100 flex-col flex-shrink-0">
         <SidebarContent />
@@ -104,7 +160,15 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
             </div>
             <span className="font-bold text-slate-800 text-sm">AttendEase</span>
           </div>
-          <div className="w-9" />
+          {/* Mobile active check-in pill */}
+          {active ? (
+            <Link href="/check-in" className="flex items-center gap-1.5 bg-emerald-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              Checked In
+            </Link>
+          ) : (
+            <div className="w-9" />
+          )}
         </header>
 
         <main className="flex-1 overflow-auto">{children}</main>
