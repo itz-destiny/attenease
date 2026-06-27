@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   if (org) {
     const activePlan = effectivePlan(org.plan, org.planExpiresAt);
     const limit = getPlanLimit(activePlan, "employees");
-    const currentCount = await prisma.user.count({ where: { orgId: session.orgId } });
+    const currentCount = await prisma.user.count({ where: { orgId: session.orgId, role: { not: "owner" } } });
     if (currentCount >= limit) {
       return NextResponse.json({
         error: `Your ${activePlan} plan supports up to ${limit} employees. Upgrade at /pricing to add more.`,

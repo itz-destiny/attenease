@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   const todayEnd = endOfDay(today);
 
   const [totalEmployees, todayAttendances, totalLocations, org] = await Promise.all([
-    prisma.user.count({ where: { orgId: session.orgId } }),
+    prisma.user.count({ where: { orgId: session.orgId, role: { not: "owner" } } }),
     prisma.attendance.findMany({
       where: { orgId: session.orgId, checkIn: { gte: todayStart, lte: todayEnd } },
       include: { user: { select: { name: true } }, location: { select: { name: true } } },
@@ -79,14 +79,12 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-            Good {getGreeting()}, {session.name.split(" ")[0]}
-          </h1>
-          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">{format(today, "EEE, MMM d, yyyy")}</p>
-        </div>
-        <AdminDashboardClient />
+      <AdminDashboardClient />
+      <div className="mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+          Good {getGreeting()}, {session.name.split(" ")[0]}
+        </h1>
+        <p className="text-slate-500 text-xs sm:text-sm mt-0.5">{format(today, "EEE, MMM d, yyyy")}</p>
       </div>
 
       {/* Stats — 2 cols on mobile, 5 on desktop */}
