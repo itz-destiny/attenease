@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
+import Link from "next/link";
 
 type Employee = { id: string; name: string; email: string; role: string; createdAt: string };
 
@@ -67,12 +68,21 @@ export default function EmployeesPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Employees</h1>
           <p className="text-slate-500 text-sm mt-0.5">{employees.length} team member{employees.length !== 1 ? "s" : ""}</p>
         </div>
-        <button onClick={() => setShowInvite(true)}
-          className="bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-1.5">
-          <span className="text-base leading-none">+</span>
-          <span className="hidden sm:inline">Add Employee</span>
-          <span className="sm:hidden">Add</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/employees/import"
+            className="border border-slate-200 text-slate-600 px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-1.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
+            </svg>
+            <span className="hidden sm:inline">Import</span>
+          </Link>
+          <button onClick={() => setShowInvite(true)}
+            className="bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-1.5">
+            <span className="text-base leading-none">+</span>
+            <span className="hidden sm:inline">Add Employee</span>
+            <span className="sm:hidden">Add</span>
+          </button>
+        </div>
       </div>
 
       {/* Invite modal */}
