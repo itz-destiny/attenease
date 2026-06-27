@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { format, startOfWeek, eachDayOfInterval, isToday, isSameDay } from "date-fns";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -13,7 +13,7 @@ type AttendanceRecord = {
   location: { name: string } | null;
 };
 
-type ActiveRecord = { id: string; checkIn: string; locationName: string | null } | null;
+type ActiveRecord = { id: string; checkIn: string; locationName: string | null };
 
 type Announcement = {
   id: string;
@@ -44,25 +44,28 @@ function getGreeting() {
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
+
+  // null = loading, false = not checked in, ActiveRecord = checked in
+  const [active, setActive] = useState<ActiveRecord | null | false>(null);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [active, setActive] = useState<ActiveRecord>(null);
-  const [loading, setLoading] = useState(true);
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [now, setNow] = useState(new Date());
   const [elapsed, setElapsed] = useState("");
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [checkoutMsg, setCheckoutMsg] = useState("");
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [recordsLoading, setRecordsLoading] = useState(true);
 
+  // Clock tick
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // Elapsed timer for active session
+  // Live elapsed timer for active session
   useEffect(() => {
     if (!active) { setElapsed(""); return; }
     function tick() {
-      const ms = Date.now() - new Date(active!.checkIn).getTime();
+      const ms = Date.now() - new Date((active as ActiveRecord).checkIn).getTime();
       const h = Math.floor(ms / 3600000);
       const m = Math.floor((ms % 3600000) / 60000);
       const s = Math.floor((ms % 60000) / 1000);
@@ -73,73 +76,100 @@ export default function EmployeeDashboard() {
     return () => clearInterval(t);
   }, [active]);
 
-  function reload() {
-    return Promise.all([
-      fetch("/api/attendance/mine?days=14").then((r) => r.json()),
-      fetch("/api/attendance/active").then((r) => r.json()),
-      fetch("/api/announcements").then((r) => r.json()),
-    ]).then(([recs, act, ann]) => {
-      setRecords(Array.isArray(recs) ? recs : []);
-      setActive(act || null);
-      setAnnouncements(Array.isArray(ann) ? ann : []);
-      setLoading(false);
-    });
-  }
+  // Fetch active check-in status — separate from records so it loads instantly
+  const refreshActive = useCallback(async () => {
+    try {
+      const res = await fetch("/api/attendance/active");
+      if (!res.ok) { setActive(false); return; }
+      const data = await res.json();
+      setActive(data && data.id ? (data as ActiveRecord) : false);
+    } catch {
+      setActive(false);
+    }
+  }, []);
 
-  useEffect(() => { reload(); }, []);
+  // Fetch attendance records + announcements
+  const refreshRecords = useCallback(async () => {
+    setRecordsLoading(true);
+    try {
+      const [recs, ann] = await Promise.all([
+        fetch("/api/attendance/mine?days=14").then((r) => r.json()).catch(() => []),
+        fetch("/api/announcements").then((r) => r.json()).catch(() => []),
+      ]);
+      setRecords(Array.isArray(recs) ? recs : []);
+      setAnnouncements(Array.isArray(ann) ? ann : []);
+    } finally {
+      setRecordsLoading(false);
+    }
+  }, []);
+
+  // Load on mount — active status first so the card shows correct state immediately
+  useEffect(() => {
+    refreshActive();
+    refreshRecords();
+  }, [refreshActive, refreshRecords]);
+
+  // Re-check active status whenever the tab becomes visible again
+  // (handles: checked in via QR on another tab, came back to dashboard)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshActive();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refreshActive);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refreshActive);
+    };
+  }, [refreshActive]);
 
   async function handleCheckOut() {
     if (!active || checkingOut) return;
     setCheckingOut(true);
-    setCheckoutMsg("");
-    try {
-      // Try to get current GPS coords, but don't block checkout if denied
-      let latitude: number | null = null;
-      let longitude: number | null = null;
-      try {
-        const pos = await new Promise<GeolocationPosition>((res, rej) =>
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
-        );
-        latitude = pos.coords.latitude;
-        longitude = pos.coords.longitude;
-      } catch { /* GPS optional for checkout */ }
+    setStatusMsg(null);
 
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    try {
+      const pos = await new Promise<GeolocationPosition>((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
+      );
+      latitude = pos.coords.latitude;
+      longitude = pos.coords.longitude;
+    } catch { /* GPS optional for checkout */ }
+
+    try {
       const res = await fetch("/api/attendance/check-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendanceId: active.id, latitude, longitude }),
+        body: JSON.stringify({ attendanceId: (active as ActiveRecord).id, latitude, longitude }),
       });
 
       if (res.ok) {
-        setActive(null);
-        setCheckoutMsg("Checked out successfully. Have a great day!");
-        // Refresh records to show the completed entry
-        fetch("/api/attendance/mine?days=14").then((r) => r.json()).then((recs) => {
-          setRecords(Array.isArray(recs) ? recs : []);
-        });
+        setActive(false);
+        setStatusMsg({ text: "Checked out successfully. Have a great day!", ok: true });
+        refreshRecords();
       } else {
-        const data = await res.json();
-        setCheckoutMsg(data.error || "Check-out failed. Please try again.");
+        const data = await res.json().catch(() => ({}));
+        setStatusMsg({ text: data.error || "Check-out failed. Please try again.", ok: false });
       }
     } catch {
-      setCheckoutMsg("Network error. Please try again.");
+      setStatusMsg({ text: "Network error. Please try again.", ok: false });
     }
     setCheckingOut(false);
   }
 
   const todayRecord = records.find((r) => isToday(new Date(r.checkIn)));
-  const doneForDay = !active && !!todayRecord?.checkOut;
+  const doneForDay = active === false && !!todayRecord?.checkOut;
 
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekDays = eachDayOfInterval({ start: weekStart, end: now });
 
-  const weekMs = records
-    .filter((r) => new Date(r.checkIn) >= weekStart)
-    .reduce((sum, r) => sum + durationMs(r), 0);
+  const weekMs = records.filter((r) => new Date(r.checkIn) >= weekStart).reduce((s, r) => s + durationMs(r), 0);
+  const todayMs = records.filter((r) => isToday(new Date(r.checkIn))).reduce((s, r) => s + durationMs(r), 0);
 
-  const todayMs = records
-    .filter((r) => isToday(new Date(r.checkIn)))
-    .reduce((sum, r) => sum + durationMs(r), 0);
+  // ─── Status card states ───────────────────────────────────────────────────
+  const isLoading = active === null; // null = still fetching
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-3xl">
@@ -151,33 +181,50 @@ export default function EmployeeDashboard() {
         <p className="text-slate-500 text-xs sm:text-sm mt-0.5">{format(now, "EEE, MMM d, yyyy")}</p>
       </div>
 
-      {/* Main status card */}
-      {active ? (
-        // ── CHECKED IN ──────────────────────────────────────────────────────
+      {/* ─── Main status card ─────────────────────────────────────────── */}
+      {isLoading ? (
+        // Skeleton while fetching active state
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 mb-5 shadow-sm animate-pulse">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-2 flex-1">
+              <div className="h-3 bg-slate-200 rounded w-32" />
+              <div className="h-7 bg-slate-200 rounded w-24" />
+            </div>
+            <div className="h-11 bg-slate-200 rounded-xl w-28 flex-shrink-0" />
+          </div>
+        </div>
+      ) : active ? (
+        // CHECKED IN — show live timer + Check Out button
         <div className="bg-emerald-600 text-white rounded-2xl p-5 mb-5 shadow-lg shadow-emerald-100">
-          <p className="text-emerald-100 text-xs font-medium mb-1">Currently checked in</p>
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <p className="text-emerald-100 text-xs font-medium">Currently checked in</p>
+            <span className="flex items-center gap-1 text-xs bg-white/20 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+              Live
+            </span>
+          </div>
           <p className="text-xl sm:text-2xl font-bold">{active.locationName ?? "Office"}</p>
-          <p className="text-emerald-200 text-sm mt-1">
-            Since {format(new Date(active.checkIn), "h:mm a")}
+          <p className="text-emerald-200 text-sm mt-0.5">
+            Checked in at {format(new Date(active.checkIn), "h:mm a")}
           </p>
-          <p className="text-4xl font-extrabold tabular-nums mt-2 mb-5">{elapsed}</p>
+          <p className="text-4xl font-extrabold tabular-nums mt-3 mb-5">{elapsed}</p>
           <button
             onClick={handleCheckOut}
             disabled={checkingOut}
             className="w-full bg-white text-emerald-700 font-bold py-3.5 rounded-xl hover:bg-emerald-50 transition-colors text-base disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {checkingOut ? (
-              <><span className="w-4 h-4 border-2 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin" /> Checking out…</>
-            ) : (
-              "Check Out"
-            )}
+              <><span className="w-4 h-4 border-2 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin" />Checking out…</>
+            ) : "Check Out"}
           </button>
-          {checkoutMsg && (
-            <p className="text-xs text-emerald-100 text-center mt-2">{checkoutMsg}</p>
+          {statusMsg && (
+            <p className={`text-xs text-center mt-2 ${statusMsg.ok ? "text-emerald-100" : "text-red-200"}`}>
+              {statusMsg.text}
+            </p>
           )}
         </div>
       ) : doneForDay ? (
-        // ── DONE FOR THE DAY ────────────────────────────────────────────────
+        // DONE FOR THE DAY
         <div className="bg-white border border-slate-100 rounded-2xl p-5 mb-5 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -188,7 +235,8 @@ export default function EmployeeDashboard() {
             <div className="flex-1">
               <p className="font-semibold text-slate-800">Attendance complete for today</p>
               <p className="text-slate-500 text-sm mt-0.5">
-                {format(new Date(todayRecord!.checkIn), "h:mm a")} – {todayRecord!.checkOut ? format(new Date(todayRecord!.checkOut), "h:mm a") : ""}
+                {format(new Date(todayRecord!.checkIn), "h:mm a")}
+                {todayRecord!.checkOut ? ` – ${format(new Date(todayRecord!.checkOut), "h:mm a")}` : ""}
                 {" "}· {fmtDuration(todayMs)}
               </p>
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-1.5 inline-block ${
@@ -198,14 +246,12 @@ export default function EmployeeDashboard() {
               </span>
             </div>
           </div>
-          {checkoutMsg && (
-            <p className={`text-sm mt-3 px-3 py-2 rounded-lg ${checkoutMsg.includes("success") ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
-              {checkoutMsg}
-            </p>
+          {statusMsg?.ok && (
+            <p className="text-sm mt-3 text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">{statusMsg.text}</p>
           )}
         </div>
       ) : (
-        // ── NOT CHECKED IN YET ──────────────────────────────────────────────
+        // NOT CHECKED IN YET
         <div className="bg-white border border-slate-100 rounded-2xl p-5 mb-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -219,8 +265,8 @@ export default function EmployeeDashboard() {
               Check In →
             </Link>
           </div>
-          {checkoutMsg && (
-            <p className="text-sm mt-3 text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">{checkoutMsg}</p>
+          {statusMsg && !statusMsg.ok && (
+            <p className="text-sm mt-3 text-red-600 bg-red-50 px-3 py-2 rounded-lg">{statusMsg.text}</p>
           )}
         </div>
       )}
@@ -255,11 +301,8 @@ export default function EmployeeDashboard() {
                 <p className="text-xs text-slate-400 mb-2">{format(day, "EEE")}</p>
                 <div className={`w-full aspect-square rounded-xl flex items-center justify-center text-sm font-semibold mx-auto max-w-[48px] ${
                   rec
-                    ? rec.status === "late"
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-emerald-100 text-emerald-700"
-                    : isNow && active
-                    ? "bg-emerald-500 text-white"
+                    ? rec.status === "late" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                    : isNow && active ? "bg-emerald-500 text-white"
                     : "bg-slate-100 text-slate-400"
                 }`}>
                   {format(day, "d")}
@@ -304,7 +347,7 @@ export default function EmployeeDashboard() {
             View all →
           </Link>
         </div>
-        {loading ? (
+        {recordsLoading ? (
           <div className="p-8 text-center text-slate-400 text-sm">Loading...</div>
         ) : records.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-sm">No attendance records yet.</div>
@@ -319,9 +362,10 @@ export default function EmployeeDashboard() {
                 <div className="text-right">
                   <p className="text-sm text-slate-700">
                     {format(new Date(r.checkIn), "HH:mm")}
-                    {r.checkOut ? ` – ${format(new Date(r.checkOut), "HH:mm")}` : (
-                      <span className="text-emerald-600 font-medium"> – Active</span>
-                    )}
+                    {r.checkOut
+                      ? ` – ${format(new Date(r.checkOut), "HH:mm")}`
+                      : <span className="text-emerald-600 font-medium"> – Active</span>
+                    }
                   </p>
                   <div className="flex items-center justify-end gap-2 mt-1">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${

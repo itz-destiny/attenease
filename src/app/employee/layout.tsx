@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
 
@@ -18,12 +18,25 @@ type ActiveSession = { id: string; checkIn: string; locationName: string | null 
 function useActiveSession() {
   const [active, setActive] = useState<ActiveSession>(null);
 
-  useEffect(() => {
-    fetch("/api/attendance/active")
-      .then((r) => r.json())
-      .then((d) => setActive(d || null))
-      .catch(() => {});
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/attendance/active");
+      if (!res.ok) return;
+      const d = await res.json();
+      setActive(d?.id ? d : null);
+    } catch { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    refresh();
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [refresh]);
 
   return active;
 }
