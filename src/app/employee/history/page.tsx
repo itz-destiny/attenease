@@ -40,11 +40,11 @@ export default function HistoryPage() {
   const avgHours = records.length > 0 ? (totalMs / records.filter((r) => r.checkOut).length / 3600000).toFixed(1) : "0";
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">My Attendance History</h1>
-          <p className="text-slate-500 text-sm mt-1">Your personal attendance records</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">My History</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Your attendance records</p>
         </div>
         <button
           onClick={() => {
@@ -69,7 +69,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
           { label: "Total Days", value: records.length, color: "text-indigo-600" },
           { label: "On Time", value: totalPresent, color: "text-emerald-600" },
@@ -106,9 +106,12 @@ export default function HistoryPage() {
         ) : (
           <div className="divide-y divide-slate-50">
             {records.map((r) => (
-              <div key={r.id} className="flex items-center justify-between px-6 py-4">
+              <div key={r.id} className="flex items-center justify-between px-4 sm:px-6 py-4">
                 <div>
-                  <p className="font-medium text-slate-800 text-sm">{format(new Date(r.checkIn), "EEEE, MMMM d, yyyy")}</p>
+                  <p className="font-medium text-slate-800 text-sm">
+                    <span className="sm:hidden">{format(new Date(r.checkIn), "EEE, MMM d")}</span>
+                    <span className="hidden sm:inline">{format(new Date(r.checkIn), "EEEE, MMMM d, yyyy")}</span>
+                  </p>
                   <p className="text-xs text-slate-400 mt-0.5">{r.location?.name ?? "No location"}</p>
                 </div>
                 <div className="text-right">

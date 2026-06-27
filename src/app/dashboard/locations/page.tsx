@@ -74,13 +74,13 @@ export default function LocationsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Office Locations</h1>
-        <p className="text-slate-500 text-sm mt-1">Define geofenced zones and generate QR codes for check-in</p>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Office Locations</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Define geofenced zones and generate QR codes for check-in</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8">
         {/* Add form */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <h2 className="font-semibold text-slate-800 mb-4">Add New Location</h2>

@@ -78,40 +78,40 @@ export default function EmployeeDashboard() {
     .reduce((sum, r) => sum + durationMs(r), 0);
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl">
       {/* Greeting */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">
+      <div className="mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
           Good {getGreeting()}, {user?.name.split(" ")[0]} 👋
         </h1>
-        <p className="text-slate-500 text-sm mt-1">{format(now, "EEEE, MMMM d, yyyy")}</p>
+        <p className="text-slate-500 text-xs sm:text-sm mt-0.5">{format(now, "EEE, MMM d, yyyy")}</p>
       </div>
 
       {/* Status card */}
-      <div className={`rounded-2xl p-6 mb-6 ${active ? "bg-emerald-600 text-white" : "bg-white border border-slate-100"}`}>
+      <div className={`rounded-2xl p-5 mb-5 ${active ? "bg-emerald-600 text-white" : "bg-white border border-slate-100"}`}>
         {active ? (
-          <div className="flex items-center justify-between">
+          <div className="flex items-start sm:items-center justify-between gap-3">
             <div>
-              <p className="text-emerald-100 text-sm font-medium mb-1">Currently checked in</p>
-              <p className="text-2xl font-bold">{active.locationName ?? "Office"}</p>
-              <p className="text-emerald-200 text-sm mt-1">
+              <p className="text-emerald-100 text-xs font-medium mb-1">Currently checked in</p>
+              <p className="text-xl sm:text-2xl font-bold">{active.locationName ?? "Office"}</p>
+              <p className="text-emerald-200 text-xs sm:text-sm mt-1">
                 Since {format(new Date(active.checkIn), "h:mm a")} · {fmtDuration(Date.now() - new Date(active.checkIn).getTime())} elapsed
               </p>
             </div>
             <Link
               href="/check-in"
-              className="bg-white text-emerald-700 font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-emerald-50 transition-colors"
+              className="bg-white text-emerald-700 font-semibold px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-sm hover:bg-emerald-50 transition-colors flex-shrink-0"
             >
               Check Out
             </Link>
           </div>
         ) : (
-          <div className="flex items-center justify-between">
+          <div className="flex items-start sm:items-center justify-between gap-3">
             <div>
-              <p className="text-slate-500 text-sm font-medium mb-1">
-                {todayRecord ? "You've checked out for today" : "You haven't checked in yet"}
+              <p className="text-slate-500 text-xs sm:text-sm font-medium mb-1">
+                {todayRecord ? "Checked out for today" : "Not checked in yet"}
               </p>
-              <p className="text-xl font-bold text-slate-800">
+              <p className="text-lg sm:text-xl font-bold text-slate-800 tabular-nums">
                 {todayRecord
                   ? `Today: ${fmtDuration(todayMs)}`
                   : format(now, "HH:mm:ss")}
@@ -120,7 +120,7 @@ export default function EmployeeDashboard() {
             {!todayRecord && (
               <Link
                 href="/check-in"
-                className="bg-indigo-600 text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-indigo-700 transition-colors"
+                className="bg-indigo-600 text-white font-semibold px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-sm hover:bg-indigo-700 transition-colors flex-shrink-0"
               >
                 Check In →
               </Link>
@@ -130,7 +130,7 @@ export default function EmployeeDashboard() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="bg-white rounded-2xl p-5 border border-slate-100">
           <p className="text-xs text-slate-400 mb-1">Today</p>
           <p className="text-xl font-bold text-slate-900">{fmtDuration(todayMs)}</p>
@@ -148,7 +148,7 @@ export default function EmployeeDashboard() {
       </div>
 
       {/* This week attendance grid */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-6 mb-6">
+      <div className="bg-white rounded-2xl border border-slate-100 p-4 sm:p-6 mb-5">
         <h2 className="font-semibold text-slate-800 mb-4">This Week</h2>
         <div className="flex gap-2">
           {weekDays.map((day) => {
